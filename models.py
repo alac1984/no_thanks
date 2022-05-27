@@ -3,6 +3,7 @@
 import random
 from typing import List
 from enum import Enum
+from errors import DeckOutOfCards, WrongNumberOfPlayers
 
 
 def get_coins(num_players):
@@ -28,6 +29,7 @@ class Status(Enum):
     ROUND_BEGIN = 1
     PAID = 2
     CARD_GOT = 3
+    END = 4
 
 
 class Deck:
@@ -40,6 +42,8 @@ class Deck:
 
     def dispense_card(self) -> int:
         """Dispense a card to be used in a round of the game"""
+        if len(self.cards) == 0:
+            raise DeckOutOfCards
         random.shuffle(self.cards)
         popped = self.cards.pop(0)
         self.dispensed_card = popped
@@ -62,6 +66,11 @@ class Player:
     def get_card(self, deck: Deck) -> int:
         """Get a card instead of paying it"""
         self.cards.append(deck.dispensed_card)
+        self.coins += deck.coins
+        deck.coins = 0
+
+        print(f"{self.name} got the {deck.dispensed_card}! Now {self.name}"
+              f" have {len(self.cards)} cards and {self.coins} coins!")
 
         return Status.CARD_GOT
 
@@ -70,10 +79,14 @@ class Player:
 
         # If no coins, player will get the card
         if self.coins == 0:
+            print(f"Oh, {self.name} doesn't have any coins!")
             self.get_card(deck)
 
         self.coins -= 1
         deck.coins += 1
+        print(f"{self.name} paid 1 coin to avoid get {deck.dispensed_card}!"
+              f" {self.name} have {self.coins} coins and this card have"
+              f" {deck.coins} coins above it!")
 
         return Status.PAID
 
@@ -98,6 +111,8 @@ class Game:
     def __init__(self, deck: Deck, players: List[Player]):
         self.deck = deck
         self.players = players
+        if len(self.players) > 7 or len(self.players) < 3:
+            raise WrongNumberOfPlayers
         self.number = 1
         self.status = Status.ROUND_BEGIN
         self.get_coins()
@@ -112,6 +127,21 @@ class Game:
                 self.number += 1
                 self.status = Status.CARD_GOT
                 break
+
+    def run_game(self):
+        """Run the game until it ends"""
+
+        print(f"Game starting on round {self.number}")
+        while self.status != Status.END:
+            try:
+                self.deck.dispense_card()
+                print(f"Card {self.deck.dispensed_card} is on the table!")
+            except DeckOutOfCards:
+                self.status = Status.END
+                breakpoint()
+                break
+
+            self.play_until_pay()
 
     def get_coins(self) -> None:
         """Initialize self.coins for every player based on the number of
